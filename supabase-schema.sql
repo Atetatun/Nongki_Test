@@ -27,9 +27,11 @@ CREATE TABLE IF NOT EXISTS participants (
   chibi TEXT NOT NULL,
   edit_token_hash TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(event_id, LOWER(name))
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_unique_name 
+  ON participants(event_id, LOWER(name));
 
 CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id);
 
