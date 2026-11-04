@@ -1,11 +1,18 @@
 const { createClient } = require('@supabase/supabase-js');
-const { nanoid } = require('nanoid');
 const crypto = require('crypto');
 
 const supabase = createClient(
   'https://aphnnkggramqnsvdxjfj.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwaG5ua2dncmFtcW5zdmR4amZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MzQzOTUsImV4cCI6MjEwOTMxMDM5NX0.gx7QYq3puQ5JgG95Fr9Egy1SkWX_zqslLbGpMuF17cU'
 );
+
+function genId() {
+  return 'room-' + Math.random().toString(36.25).substring(2, 8);
+}
+
+function genToken() {
+  return crypto.randomBytes(16).toString('hex');
+}
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -24,20 +31,17 @@ module.exports = async function handler(req, res) {
 
   const url = req.url.split('?')[0];
   const parts = url.split('/').filter(Boolean);
-  // parts: ['api', 'events'] or ['api', 'events', 'room-xxx'] etc.
   const apiIndex = parts.indexOf('events');
   const routeParts = apiIndex !== -1 ? parts.slice(apiIndex) : parts;
-  // routeParts: ['events'] or ['events', 'room-xxx'] etc.
 
   try {
-    // 1. POST /api/events
     if (req.method === 'POST' && routeParts.length === 1 && routeParts[0] === 'events') {
       const { name, days, owner, ownerChibi } = req.body || {};
       if (!name || !days || !owner || !ownerChibi) {
         return res.status(400).json({ error: { code: 'missing_fields', message: 'Field tidak lengkap' } });
       }
-      const id = 'room-' + nanoid(6);
-      const editToken = nanoid(32);
+      const id = genId();
+      const editToken = genToken();
       
       const { error: eventError } = await supabase.from('events').insert({
         id, name, start_date: days[0], end_date: days[days.length - 1]
@@ -52,7 +56,6 @@ module.exports = async function handler(req, res) {
       return res.json({ id, url: `https://atetatun.github.io/Nongki_Test/#${id}`, editToken });
     }
 
-    // 2. GET /api/events/:id
     if (req.method === 'GET' && routeParts.length === 2 && routeParts[0] === 'events') {
       const id = routeParts[1];
       const { data: event, error } = await supabase.from('events').select('*').eq('id', id).single();
@@ -84,11 +87,10 @@ module.exports = async function handler(req, res) {
       return res.json({ id: event.id, name: event.name, days, people, owner: Object.keys(people)[0] || '', t: new Date(event.created_at).getTime() });
     }
 
-    // 3. POST /api/events/:id/participants
     if (req.method === 'POST' && routeParts.length === 3 && routeParts[0] === 'events' && routeParts[2] === 'participants') {
       const id = routeParts[1];
       const { name, chibi } = req.body || {};
-      const editToken = nanoid(32);
+      const editToken = genToken();
       const { data, error } = await supabase.from('participants').insert({
         event_id: id, name, chibi, edit_token_hash: hashToken(editToken)
       }).select().single();
@@ -96,7 +98,6 @@ module.exports = async function handler(req, res) {
       return res.json({ participantId: data.id, editToken });
     }
 
-    // 4. PUT /api/events/:id/participants/:pid/availability
     if (req.method === 'PUT' && routeParts.length === 5 && routeParts[0] === 'events' && routeParts[2] === 'participants' && routeParts[4] === 'availability') {
       const id = routeParts[1];
       const pid = routeParts[3];
