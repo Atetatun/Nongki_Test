@@ -3,7 +3,6 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { nanoid } = require('nanoid');
 const crypto = require('crypto');
-require('dotenv').config({ path: '.env.local' });
 
 const app = express();
 app.use(cors());
@@ -18,66 +17,35 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-// POST /events - Buat acara baru
 app.post('/events', async (req, res) => {
   const { name, days, owner, ownerChibi } = req.body;
-  
   if (!name || !days || !owner || !ownerChibi) {
-    return res.status(400).json({ error: { code: 'missing_fields', message: 'Nama, days, owner, dan ownerChibi wajib diisi' } });
+    return res.status(400).json({ error: { code: 'missing_fields', message: 'Field tidak lengkap' } });
   }
-
   const id = 'room-' + nanoid(6);
   const editToken = nanoid(32);
   
   const { error: eventError } = await supabase.from('events').insert({
-    id,
-    name,
-    start_date: days[0],
-    end_date: days[days.length - 1]
+    id, name, start_date: days[0], end_date: days[days.length - 1]
   });
+  if (eventError) return res.status(500).json({ error: eventError.message });
 
-  if (eventError) {
-    return res.status(500).json({ error: { code: 'create_failed', message: eventError.message } });
-  }
-
-  const { error: participantError } = await supabase.from('participants').insert({
-    event_id: id,
-    name: owner,
-    chibi: ownerChibi,
-    edit_token_hash: hashToken(editToken)
+  const { error: partError } = await supabase.from('participants').insert({
+    event_id: id, name: owner, chibi: ownerChibi, edit_token_hash: hashToken(editToken)
   });
-
-  if (participantError) {
-    return res.status(500).json({ error: { code: 'participant_failed', message: participantError.message } });
-  }
+  if (partError) return res.status(500).json({ error: partError.message });
 
   res.json({ id, url: `https://atetatun.github.io/Nongki_Test/#${id}`, editToken });
 });
 
-// GET /events/:id - Dapatkan detail acara
 app.get('/events/:id', async (req, res) => {
   const { id } = req.params;
+  const { data: event, error } = await supabase.from('events').select('*').eq('id', id).single();
+  if (error || !event) return res.status(404).json({ error: 'Not found' });
 
-  const { data: event, error: eventError } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (eventError || !event) {
-    return res.status(404).json({ error: { code: 'not_found', message: 'Acara tidak ditemukan' } });
-  }
-
-  const { data: participants } = await supabase
-    .from('participants')
-    .select('id, name, chibi, created_at')
-    .eq('event_id', id);
-
-  const participantIds = (participants || []).map(p => p.id);
-  const { data: availability } = await supabase
-    .from('availability')
-    .select('*')
-    .in('participant_id', participantIds);
+  const { data: participants } = await supabase.from('participants').select('*').eq('event_id', id);
+  const partIds = (participants || []).map(p => p.id);
+  const { data: availability } = await supabase.from('availability').select('*').in('participant_id', partIds);
 
   const availabilityMap = {};
   (availability || []).forEach(a => {
@@ -87,10 +55,7 @@ app.get('/events/:id', async (req, res) => {
 
   const people = {};
   (participants || []).forEach(p => {
-    people[p.name] = {
-      c: p.chibi,
-      s: availabilityMap[p.id] || {}
-    };
+    people[p.name] = { c: p.chibi, s: availabilityMap[p.id] || {} };
   });
 
   const days = [];
@@ -101,84 +66,33 @@ app.get('/events/:id', async (req, res) => {
     d.setDate(d.getDate() + 1);
   }
 
-  res.json({
-    id: event.id,
-    name: event.name,
-    days,
-    people,
-    owner: Object.keys(people)[0] || '',
-    t: new Date(event.created_at).getTime()
-  });
+  res.json({ id: event.id, name: event.name, days, people, owner: Object.keys(people)[0] || '', t: new Date(event.created_at).getTime() });
 });
 
-// POST /events/:id/participants - Gabung sebagai partisipan
 app.post('/events/:id/participants', async (req, res) => {
   const { id } = req.params;
   const { name, chibi } = req.body;
-
-  if (!name || !chibi) {
-    return res.status(400).json({ error: { code: 'missing_fields', message: 'Nama dan chibi wajib diisi' } });
-  }
-
   const editToken = nanoid(32);
-
   const { data, error } = await supabase.from('participants').insert({
-    event_id: id,
-    name,
-    chibi,
-    edit_token_hash: hashToken(editToken)
+    event_id: id, name, chibi, edit_token_hash: hashToken(editToken)
   }).select().single();
-
-  if (error) {
-    return res.status(400).json({ error: { code: 'insert_failed', message: error.message } });
-  }
-
+  if (error) return res.status(400).json({ error: error.message });
   res.json({ participantId: data.id, editToken });
 });
 
-// PUT /events/:id/participants/:pid/availability - Update ketersediaan
 app.put('/events/:id/participants/:pid/availability', async (req, res) => {
   const { id, pid } = req.params;
   const { slots, editToken } = req.body;
-
-  if (!editToken) {
-    return res.status(401).json({ error: { code: 'unauthorized', message: 'Token edit diperlukan' } });
-  }
-
-  const { data: participant } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('id', pid)
-    .eq('event_id', id)
-    .single();
-
+  const { data: participant } = await supabase.from('participants').select('*').eq('id', pid).eq('event_id', id).single();
   if (!participant || participant.edit_token_hash !== hashToken(editToken)) {
-    return res.status(403).json({ error: { code: 'forbidden', message: 'Token tidak valid' } });
+    return res.status(403).json({ error: 'Unauthorized' });
   }
-
   await supabase.from('availability').delete().eq('participant_id', pid);
-
   if (slots && Object.keys(slots).length > 0) {
-    const records = Object.entries(slots).map(([slot_key, status]) => ({
-      participant_id: pid,
-      slot_key,
-      status
-    }));
-
-    const { error } = await supabase.from('availability').insert(records);
-    if (error) {
-      return res.status(500).json({ error: { code: 'update_failed', message: error.message } });
-    }
+    const records = Object.entries(slots).map(([slot_key, status]) => ({ participant_id: pid, slot_key, status }));
+    await supabase.from('availability').insert(records);
   }
-
   res.json({ success: true });
 });
-
-const PORT = process.env.PORT || 3001;
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`Backend running on http://localhost:${PORT}`);
-  });
-}
 
 module.exports = app;
