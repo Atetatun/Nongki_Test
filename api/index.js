@@ -18,8 +18,8 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-// POST /api/events - Buat acara baru
-app.post('/api/events', async (req, res) => {
+// POST /events - Buat acara baru
+app.post('/events', async (req, res) => {
   const { name, days, owner, ownerChibi } = req.body;
   
   if (!name || !days || !owner || !ownerChibi) {
@@ -54,8 +54,8 @@ app.post('/api/events', async (req, res) => {
   res.json({ id, url: `https://atetatun.github.io/Nongki_Test/#${id}`, editToken });
 });
 
-// GET /api/events/:id - Dapatkan detail acara
-app.get('/api/events/:id', async (req, res) => {
+// GET /events/:id - Dapatkan detail acara
+app.get('/events/:id', async (req, res) => {
   const { id } = req.params;
 
   const { data: event, error: eventError } = await supabase
@@ -111,8 +111,8 @@ app.get('/api/events/:id', async (req, res) => {
   });
 });
 
-// POST /api/events/:id/participants - Gabung sebagai partisipan
-app.post('/api/events/:id/participants', async (req, res) => {
+// POST /events/:id/participants - Gabung sebagai partisipan
+app.post('/events/:id/participants', async (req, res) => {
   const { id } = req.params;
   const { name, chibi } = req.body;
 
@@ -136,8 +136,8 @@ app.post('/api/events/:id/participants', async (req, res) => {
   res.json({ participantId: data.id, editToken });
 });
 
-// PUT /api/events/:id/participants/:pid/availability - Update ketersediaan
-app.put('/api/events/:id/participants/:pid/availability', async (req, res) => {
+// PUT /events/:id/participants/:pid/availability - Update ketersediaan
+app.put('/events/:id/participants/:pid/availability', async (req, res) => {
   const { id, pid } = req.params;
   const { slots, editToken } = req.body;
 
