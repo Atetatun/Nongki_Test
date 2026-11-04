@@ -377,5 +377,41 @@ async function exportAs(e,k,b){if(!DL){toast('Unduhan belum tersedia di tampilan
   else{var c=await poster(e),bl=await new Promise(function(r){c.toBlob(r,'image/jpeg',.92)});if(k==='jpg')await DL.save({filename:base+'.jpg',data:bl});else{var u8=new Uint8Array(await bl.arrayBuffer());await DL.save({filename:base+'.pdf',data:pdfFrom(u8,c.width,c.height)})}}
   toast('Tersimpan!')}catch(z){if(!z||z.code!=='declined')toast('Gagal mengunduh, coba lagi')}b.disabled=false}
 </script>
+<script src="api-integration.js"></script>
+<script>
+// Integrate API calls ke existing flow
+(function() {
+  const originalBuat = window.buat;
+  window.buat = function() {
+    if(!draft.name){location.hash='mulai';return}
+    var t=new Date(),e=new Date();e.setDate(e.getDate()+2);
+    view('<div class="wrapc"><section class="card"><h1>INISIATOR</h1><p class="sub">Masukkan namamu, nama kegiatan dan<br>tentuin kapan Tanggalnya!</p>'+
+    '<label for="jd">Masukkan Judul Kegiatan</label><input class="in" id="jd" maxlength="40" placeholder="Contoh : Arisan Maknya" autocomplete="off">'+
+    '<div class="dates" style="margin-top:22px"><div><label for="d1">Mulai Tanggal</label><input class="dt" type="date" id="d1" value="'+iso(t)+'"></div><div><label for="d2">Tanggal Selesai</label><input class="dt" type="date" id="d2" value="'+iso(e)+'"></div></div>'+
+    '<div class="err" id="er" role="alert"></div><button class="go" id="ok">Buat Room</button></section></div>','form');
+    $('#ok').onclick=async function(){
+      var jd=$('#jd').value.trim(),a=$('#d1').value,b=$('#d2').value;
+      if(!jd){$('#er').textContent='Isi judul kegiatan dulu ya.';$('#jd').focus();return}
+      if(!a||!b){$('#er').textContent='Pilih tanggal mulai dan selesai.';return}
+      if(b<a){$('#er').textContent='Tanggal selesai harus setelah tanggal mulai.';return}
+      var days=[],d=dt(a);while(iso(d)<=b&&days.length<8){days.push(iso(d));d.setDate(d.getDate()+1)}
+      if(days.length>7){$('#er').textContent='Maksimal 7 hari supaya tabel tetap muat.';return}
+      try {
+        const id = await buatEventAPI(jd, days, draft.name, draft.c);
+        hist.unshift(id);persist();location.hash=id;
+      } catch(err) {
+        $('#er').textContent='Gagal membuat acara: ' + err.message;
+      }
+    };
+  };
+
+  const originalRoom = window.room;
+  window.room = async function(id) {
+    await loadEventAPI(id);
+    if(originalRoom) originalRoom(id);
+    startPolling(id);
+  };
+})();
+</script>
 </body>
 </html>

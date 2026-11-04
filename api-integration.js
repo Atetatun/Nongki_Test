@@ -1,5 +1,5 @@
 // API Backend Configuration
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://nongki-test.vercel.app/api';
 
 // Override localStorage functions dengan API calls
 const originalEv = window.ev || {};
