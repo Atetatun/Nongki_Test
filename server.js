@@ -10,8 +10,8 @@ app.use(cors());
 app.use(express.json());
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  'https://aphnnkggramqnsvdxjfj.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwaG5ua2dncmFtcW5zdmR4amZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MzQzOTUsImV4cCI6MjEwOTMxMDM5NX0.gx7QYq3puQ5JgG95Fr9Egy1SkWX_zqslLbGpMuF17cU'
 );
 
 function hashToken(token) {
